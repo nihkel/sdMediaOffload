@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import logging.handlers
 import os
 import subprocess
 import sys
@@ -52,6 +53,16 @@ logging.basicConfig(
     format="%(asctime)s sdoffload-agent %(levelname)s: %(message)s",
 )
 log = logging.getLogger("sdoffload-agent")
+
+# udev discards stderr/stdout of RUN+= commands. Send to syslog so the events
+# show up in `journalctl -t sdoffload-agent` for both interactive and udev runs.
+try:
+    _syslog = logging.handlers.SysLogHandler(address="/dev/log")
+    _syslog.ident = "sdoffload-agent: "
+    _syslog.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    logging.getLogger().addHandler(_syslog)
+except Exception:
+    pass
 
 
 def cli() -> int:

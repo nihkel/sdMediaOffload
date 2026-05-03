@@ -12,7 +12,12 @@ services:
       - ./backend:/app
       - ${SDOFFLOAD_DATA_PATH:-./data}:/app/data
       - ${SDOFFLOAD_DESTINATION_PATH:-./media}:/data/media
-      - ${SDOFFLOAD_SOURCE_PATH:-./mock-source}:/mnt/sdoffload:ro
+      - type: bind
+        source: ${SDOFFLOAD_SOURCE_PATH:-./mock-source}
+        target: /mnt/sdoffload
+        read_only: true
+        bind:
+          propagation: rslave
     environment:
       SDOFFLOAD_LOG_LEVEL: DEBUG
 

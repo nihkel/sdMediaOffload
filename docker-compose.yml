@@ -23,8 +23,14 @@ services:
       # Where imported files land. On Proxmox, point this at your NAS / dataset.
       - ${SDOFFLOAD_DESTINATION_PATH:-./media}:/data/media
       # Read-only view of whatever the host-agent mounts on the Proxmox host.
-      # On Proxmox this would typically be an NFS export from the host:/mnt/sdoffload.
-      - ${SDOFFLOAD_SOURCE_PATH:-./mock-source}:/mnt/sdoffload:ro
+      # IMPORTANT: bind propagation must be rslave so new sub-mounts (each SD card)
+      # made on the host appear inside the container.
+      - type: bind
+        source: ${SDOFFLOAD_SOURCE_PATH:-./mock-source}
+        target: /mnt/sdoffload
+        read_only: true
+        bind:
+          propagation: rslave
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health').status==200 else 1)"]
       interval: 30s
