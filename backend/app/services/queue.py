@@ -45,25 +45,25 @@ class ImportWorker:
 
     async def _run(self) -> None:
         log.info("Import worker started")
+        loop = asyncio.get_running_loop()
         while not self._stopped:
             import_id = await self.queue.get()
             if import_id == -1:
                 break
             try:
-                await asyncio.to_thread(self._process, import_id)
+                await asyncio.to_thread(self._process, import_id, loop)
             except Exception:
                 log.exception("Worker error processing import %s", import_id)
 
-    def _process(self, import_id: int) -> None:
+    def _process(self, import_id: int, loop: asyncio.AbstractEventLoop) -> None:
         def progress(payload: dict) -> None:
-            asyncio.run_coroutine_threadsafe(broker.publish(payload), _loop()).result(timeout=2)
+            try:
+                asyncio.run_coroutine_threadsafe(broker.publish(payload), loop).result(timeout=2)
+            except Exception:
+                pass  # broker fan-out is best-effort, never block the import
 
         with session_scope() as s:
             importer_mod.run_import(s, import_id, on_progress=progress)
-
-
-def _loop() -> asyncio.AbstractEventLoop:
-    return asyncio.get_event_loop()
 
 
 import_worker = ImportWorker()
