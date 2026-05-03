@@ -1,0 +1,13 @@
+[Unit]
+Description=SD Media Offload host agent (udev wrapper bookkeeping)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/default/sdoffload-agent
+ExecStart=/bin/true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-slate-100 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-panel border border-border rounded-xl;
+  }
+  .pill {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .pill-running { @apply bg-amber-500/15 text-amber-300; }
+  .pill-done    { @apply bg-emerald-500/15 text-emerald-300; }
+  .pill-failed  { @apply bg-rose-500/15 text-rose-300; }
+  .pill-pending { @apply bg-sky-500/15 text-sky-300; }
+}

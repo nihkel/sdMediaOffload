@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sdoffload:latest
+    container_name: sdoffload
+    restart: unless-stopped
+    ports:
+      - "${SDOFFLOAD_PORT:-8000}:8000"
+    environment:
+      SDOFFLOAD_HOST_TOKEN: ${SDOFFLOAD_HOST_TOKEN:?set in .env}
+      SDOFFLOAD_DESTINATION_ROOT: /data/media
+      SDOFFLOAD_DB_PATH: /app/data/sdoffload.db
+      SDOFFLOAD_DEFAULT_TEMPLATE: ${SDOFFLOAD_DEFAULT_TEMPLATE:-{camera_slug}/{captured:%Y}/{captured:%Y-%m-%d}/{original_name}}
+      SDOFFLOAD_LOG_LEVEL: ${SDOFFLOAD_LOG_LEVEL:-INFO}
+      # If host-agent reports /mnt/sdoffload/<uuid> and we mount the same path,
+      # leave remap empty. Format if needed: "<host-prefix>:<container-prefix>"
+      SDOFFLOAD_SOURCE_PATH_REMAP: ${SDOFFLOAD_SOURCE_PATH_REMAP:-}
+    volumes:
+      # Persistent app state (SQLite + future caches)
+      - ${SDOFFLOAD_DATA_PATH:-./data}:/app/data
+      # Where imported files land. On Proxmox, point this at your NAS / dataset.
+      - ${SDOFFLOAD_DESTINATION_PATH:-./media}:/data/media
+      # Read-only view of whatever the host-agent mounts on the Proxmox host.
+      # On Proxmox this would typically be an NFS export from the host:/mnt/sdoffload.
+      - ${SDOFFLOAD_SOURCE_PATH:-./mock-source}:/mnt/sdoffload:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

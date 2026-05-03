@@ -1,0 +1,21 @@
+# SD Media Offload — udev rules
+#
+# Trigger our agent when a removable USB block device (with a partition) appears.
+# We match partitions (DEVTYPE=="partition") rather than the whole disk so we mount
+# the actual filesystem, not the device node.
+#
+# Install: cp 99-sdoffload.rules /etc/udev/rules.d/ && udevadm control --reload-rules
+
+ACTION=="add",    SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", \
+    RUN+="/usr/local/bin/sdoffload-agent attach $env{DEVNAME}"
+
+ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", \
+    RUN+="/usr/local/bin/sdoffload-agent detach $env{DEVNAME}"
+
+# If your Proxmox SD reader exposes the SD as an MMC block device (not USB),
+# uncomment the rules below and adjust:
+#
+# ACTION=="add",    SUBSYSTEM=="block", KERNEL=="mmcblk[0-9]p[0-9]", \
+#     RUN+="/usr/local/bin/sdoffload-agent attach $env{DEVNAME}"
+# ACTION=="remove", SUBSYSTEM=="block", KERNEL=="mmcblk[0-9]p[0-9]", \
+#     RUN+="/usr/local/bin/sdoffload-agent detach $env{DEVNAME}"
