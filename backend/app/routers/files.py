@@ -1,9 +1,14 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..config import settings as app_settings
 from ..db import get_session
+from ..services import thumbnails as thumbs
 
 
 router = APIRouter()
@@ -52,3 +57,31 @@ def get_file(file_id: int, s: Session = Depends(get_session)):
     if not f:
         raise HTTPException(404)
     return f
+
+
+@router.get("/{file_id}/thumb", response_class=FileResponse)
+def get_thumb(file_id: int, s: Session = Depends(get_session)):
+    f = s.get(models.MediaFile, file_id)
+    if not f:
+        raise HTTPException(404)
+    p = thumbs.thumb_path_for(app_settings.thumbs_dir, file_id)
+    if not p.is_file():
+        # Generate on demand if dest still exists (covers backfill of pre-existing media)
+        dest = Path(f.dest_path)
+        if dest.is_file():
+            thumbs.generate(dest, p)
+    if not p.is_file():
+        raise HTTPException(404, "no thumbnail")
+    return FileResponse(p, media_type="image/jpeg")
+
+
+@router.get("/{file_id}/raw", response_class=FileResponse)
+def get_raw(file_id: int, s: Session = Depends(get_session)):
+    f = s.get(models.MediaFile, file_id)
+    if not f:
+        raise HTTPException(404)
+    p = Path(f.dest_path)
+    if not p.is_file():
+        raise HTTPException(404, "file missing on disk")
+    return FileResponse(p, media_type=f.mime_type or "application/octet-stream",
+                        filename=f.original_name)

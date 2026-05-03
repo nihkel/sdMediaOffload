@@ -19,6 +19,7 @@ from ..config import settings
 from .camera_detect import detect_camera, is_media_file
 from .exif import read_exif, mime_for
 from .hasher import partial_hash
+from . import thumbnails as thumbs
 
 
 log = logging.getLogger("sdoffload.importer")
@@ -177,6 +178,12 @@ def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
     )
     session.add(media)
     try:
+        session.flush()
+        # Generate thumbnail (best-effort, non-fatal)
+        try:
+            thumbs.generate(dest, thumbs.thumb_path_for(settings.thumbs_dir, media.id))
+        except Exception:
+            log.exception("thumbnail generation crashed for %s", dest)
         session.commit()
     except IntegrityError:
         session.rollback()

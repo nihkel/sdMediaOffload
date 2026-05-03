@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SDOFFLOAD_", env_file=".env", extra="ignore")
 
     db_path: Path = Path("./data/sdoffload.db")
+    thumbs_dir: Path = Path("./data/thumbs")
     destination_root: Path = Path("/mnt/media")
     default_template: str = "{camera_slug}/{captured:%Y}/{captured:%Y-%m-%d}/{original_name}"
     host_token: str = "change-me"

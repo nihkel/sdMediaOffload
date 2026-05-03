@@ -17,7 +17,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini \
+ && apt-get install -y --no-install-recommends ca-certificates tini ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -34,7 +34,9 @@ RUN python -m pip install --upgrade pip \
     "aiofiles>=23.2" \
     "exifread>=3.0" \
     "python-multipart>=0.0.9" \
-    "httpx>=0.27"
+    "httpx>=0.27" \
+    "Pillow>=10.4" \
+    "pillow-heif>=0.18"
 
 COPY backend/ ./
 COPY --from=frontend-build /build/dist ./static
