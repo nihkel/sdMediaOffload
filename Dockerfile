@@ -39,14 +39,11 @@ RUN python -m pip install --upgrade pip \
 COPY backend/ ./
 COPY --from=frontend-build /build/dist ./static
 
-RUN mkdir -p /app/data /data/media /mnt/sdoffload \
- && useradd --system --uid 1000 --shell /usr/sbin/nologin sdoffload \
- && chown -R sdoffload:sdoffload /app /data/media
+RUN mkdir -p /app/data /data/media /mnt/sdoffload
 
 ENV SDOFFLOAD_DB_PATH=/app/data/sdoffload.db \
     SDOFFLOAD_DESTINATION_ROOT=/data/media
 
-USER sdoffload
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
