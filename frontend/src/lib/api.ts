@@ -18,12 +18,14 @@ export type CameraProfileOut = {
   dest_template: string;
 };
 
+export type ImportStatus = "pending" | "scanning" | "copying" | "paused" | "done" | "failed" | "cancelled";
+
 export type ImportOut = {
   id: number;
   device_id: number;
   camera_profile_id: number | null;
   mount_path: string;
-  status: "pending" | "scanning" | "copying" | "done" | "failed" | "cancelled";
+  status: ImportStatus;
   files_total: number;
   files_new: number;
   files_skipped: number;
@@ -82,6 +84,10 @@ export const api = {
   imports: (status?: string) => get<ImportOut[]>(`/imports${status ? `?status=${status}` : ""}`),
   activeImports: () => get<ImportOut[]>("/imports/active"),
   importById: (id: number) => get<ImportOut>(`/imports/${id}`),
+  pauseImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/pause`),
+  cancelImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/cancel`),
+  resumeImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/resume`),
+  retryImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/retry`),
   importFiles: (id: number) => get<MediaFileOut[]>(`/imports/${id}/files`),
   importSkips: (id: number) =>
     get<{ id: number; original_path: string; reason: string; matched_media_id: number | null; detail: string | null }[]>(

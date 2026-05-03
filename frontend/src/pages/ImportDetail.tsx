@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api, openProgressSocket, type ImportOut, type MediaFileOut } from "../lib/api";
 import { bytes, pct, relTime } from "../lib/format";
 import StatusPill from "../components/StatusPill";
+import ImportControls from "../components/ImportControls";
 
 type Skip = { id: number; original_path: string; reason: string; matched_media_id: number | null; detail: string | null };
 
@@ -49,7 +50,10 @@ export default function ImportDetail() {
             {imp.finished_at && <> · finished {relTime(imp.finished_at)}</>}
           </div>
         </div>
-        <StatusPill status={imp.status} />
+        <div className="flex items-center gap-3">
+          <ImportControls imp={imp} onChange={refresh} />
+          <StatusPill status={imp.status} />
+        </div>
       </header>
 
       {imp.error && (

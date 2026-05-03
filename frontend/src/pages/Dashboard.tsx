@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, openProgressSocket, type DeviceOut, type ImportOut, type Stats } from "../lib/api";
 import { bytes, pct, relTime } from "../lib/format";
 import StatusPill from "../components/StatusPill";
+import ImportControls from "../components/ImportControls";
 
 export default function Dashboard() {
   const [devices, setDevices] = useState<DeviceOut[]>([]);
@@ -44,7 +45,7 @@ export default function Dashboard() {
           <div className="panel p-6 text-muted text-sm">No imports running. Connect a card or camera.</div>
         ) : (
           <div className="space-y-3">
-            {active.map((imp) => <ActiveCard key={imp.id} imp={imp} />)}
+            {active.map((imp) => <ActiveCard key={imp.id} imp={imp} onChange={refresh} />)}
           </div>
         )}
       </section>
@@ -99,23 +100,25 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActiveCard({ imp }: { imp: ImportOut }) {
-  const filePct = pct(imp.files_new + imp.files_skipped + imp.files_failed, imp.files_total);
+function ActiveCard({ imp, onChange }: { imp: ImportOut; onChange: () => void }) {
+  const processed = imp.files_new + imp.files_skipped + imp.files_failed;
+  const filePct = pct(processed, imp.files_total);
   const bytePct = pct(imp.bytes_copied, imp.bytes_total);
   return (
     <Link to={`/imports/${imp.id}`} className="panel p-4 block hover:border-accent/40">
       <div className="flex items-center gap-4">
         <StatusPill status={imp.status} />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="font-medium">
             {imp.camera_profile?.name || "Detecting…"} · #{imp.id}
           </div>
-          <div className="text-xs text-muted">{imp.mount_path}</div>
+          <div className="text-xs text-muted truncate">{imp.mount_path}</div>
         </div>
         <div className="text-right text-xs">
-          <div>{imp.files_new + imp.files_skipped + imp.files_failed} / {imp.files_total} files</div>
+          <div>{processed} / {imp.files_total} files</div>
           <div className="text-muted">{bytes(imp.bytes_copied)} / {bytes(imp.bytes_total)}</div>
         </div>
+        <ImportControls imp={imp} onChange={onChange} size="sm" />
       </div>
       <div className="mt-3 h-1.5 rounded-full bg-border overflow-hidden">
         <div className="h-full bg-accent transition-all" style={{ width: `${Math.max(filePct, bytePct)}%` }} />

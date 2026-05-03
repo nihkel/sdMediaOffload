@@ -1,11 +1,19 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..db import get_session
+from ..services.queue import import_worker
+from ..services.ws_broker import broker
 
 
 router = APIRouter()
+
+
+TERMINAL_STATUSES = {"done", "failed", "cancelled"}
+RUNNING_STATUSES = {"pending", "scanning", "copying"}
 
 
 @router.get("", response_model=list[schemas.ImportOut])
@@ -61,3 +69,73 @@ def import_events(import_id: int, s: Session = Depends(get_session)):
             .filter_by(import_id=import_id)
             .order_by(models.Event.ts.asc())
             .all())
+
+
+@router.post("/{import_id}/pause", response_model=schemas.ImportOut)
+async def pause_import(import_id: int, s: Session = Depends(get_session)):
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    if imp.status not in RUNNING_STATUSES:
+        raise HTTPException(400, f"Cannot pause import in status '{imp.status}'")
+    imp.status = "paused"
+    s.add(models.Event(level="info", source="api", import_id=imp.id,
+                       device_id=imp.device_id, message="Import paused by user"))
+    s.commit()
+    s.refresh(imp)
+    await broker.publish({"import_id": imp.id, "status": imp.status, "event": "paused"})
+    return imp
+
+
+@router.post("/{import_id}/cancel", response_model=schemas.ImportOut)
+async def cancel_import(import_id: int, s: Session = Depends(get_session)):
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    if imp.status in TERMINAL_STATUSES:
+        raise HTTPException(400, f"Cannot cancel import in terminal status '{imp.status}'")
+    imp.status = "cancelled"
+    imp.finished_at = datetime.utcnow()
+    s.add(models.Event(level="warn", source="api", import_id=imp.id,
+                       device_id=imp.device_id, message="Import cancelled by user"))
+    s.commit()
+    s.refresh(imp)
+    await broker.publish({"import_id": imp.id, "status": imp.status, "event": "cancelled"})
+    return imp
+
+
+@router.post("/{import_id}/resume", response_model=schemas.ImportOut)
+async def resume_import(import_id: int, s: Session = Depends(get_session)):
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    if imp.status != "paused":
+        raise HTTPException(400, f"Can only resume paused imports (current: '{imp.status}')")
+    imp.status = "pending"
+    s.add(models.Event(level="info", source="api", import_id=imp.id,
+                       device_id=imp.device_id, message="Import resumed by user"))
+    s.commit()
+    s.refresh(imp)
+    await import_worker.enqueue(imp.id)
+    await broker.publish({"import_id": imp.id, "status": imp.status, "event": "resumed"})
+    return imp
+
+
+@router.post("/{import_id}/retry", response_model=schemas.ImportOut)
+async def retry_import(import_id: int, s: Session = Depends(get_session)):
+    """Re-queue a failed/cancelled import. Already-imported files are skipped via dedup."""
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    if imp.status not in {"failed", "cancelled"}:
+        raise HTTPException(400, f"Can only retry failed/cancelled imports (current: '{imp.status}')")
+    imp.status = "pending"
+    imp.error = None
+    imp.finished_at = None
+    s.add(models.Event(level="info", source="api", import_id=imp.id,
+                       device_id=imp.device_id, message="Import retried by user"))
+    s.commit()
+    s.refresh(imp)
+    await import_worker.enqueue(imp.id)
+    await broker.publish({"import_id": imp.id, "status": imp.status, "event": "retried"})
+    return imp

@@ -40,26 +40,32 @@ def run_import(session: Session, import_id: int, on_progress=None) -> None:
         log.warning("Import %s not found", import_id)
         return
 
+    resuming = imp.files_new > 0 or imp.files_skipped > 0 or imp.camera_profile_id is not None
     src_root = remap_source(imp.mount_path)
     if not src_root.exists():
         _fail(session, imp, f"Source path not accessible: {src_root}")
         return
 
-    _emit(session, "info", "importer", imp, f"Starting scan of {src_root}")
+    if resuming:
+        _emit(session, "info", "importer", imp, f"Resuming import from {src_root}")
+    else:
+        _emit(session, "info", "importer", imp, f"Starting scan of {src_root}")
     imp.status = "scanning"
     session.commit()
 
-    profiles = [_profile_dict(p) for p in session.query(models.CameraProfile).all()]
-    detection = detect_camera(src_root, profiles, probe_exif=lambda p: read_exif(p))
-    profile = session.query(models.CameraProfile).filter_by(slug=detection.slug).one_or_none()
-    if profile:
-        imp.camera_profile_id = profile.id
-        if imp.device:
-            imp.device.detected_camera_id = profile.id
-    _emit(session, "info", "importer", imp,
-          f"Camera detected: {detection.slug} (score={detection.score})",
-          {"matched": detection.matched})
-    session.commit()
+    profile = imp.camera_profile if imp.camera_profile_id else None
+    if profile is None:
+        profiles = [_profile_dict(p) for p in session.query(models.CameraProfile).all()]
+        detection = detect_camera(src_root, profiles, probe_exif=lambda p: read_exif(p))
+        profile = session.query(models.CameraProfile).filter_by(slug=detection.slug).one_or_none()
+        if profile:
+            imp.camera_profile_id = profile.id
+            if imp.device:
+                imp.device.detected_camera_id = profile.id
+        _emit(session, "info", "importer", imp,
+              f"Camera detected: {detection.slug} (score={detection.score})",
+              {"matched": detection.matched})
+        session.commit()
 
     files: list[Path] = sorted(p for p in src_root.rglob("*") if p.is_file() and is_media_file(p))
     imp.files_total = len(files)
@@ -71,6 +77,20 @@ def run_import(session: Session, import_id: int, on_progress=None) -> None:
     template = (profile.dest_template if profile else settings.default_template)
 
     for src in files:
+        # Check for pause/cancel signals every iteration (other sessions may have updated status)
+        session.expire(imp, ["status"])
+        current_status = imp.status
+        if current_status == "paused":
+            _emit(session, "info", "importer", imp, "Import paused — exiting worker loop")
+            _maybe_progress(on_progress, imp)
+            return
+        if current_status == "cancelled":
+            imp.finished_at = datetime.utcnow()
+            session.commit()
+            _emit(session, "warn", "importer", imp, "Import cancelled — exiting worker loop")
+            _maybe_progress(on_progress, imp)
+            return
+
         try:
             _import_one(session, imp, src, src_root, profile, template)
         except Exception as exc:
@@ -99,6 +119,10 @@ def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
                 .filter_by(partial_hash=phash, size_bytes=size, original_name=src.name)
                 .one_or_none())
     if existing:
+        if existing.first_import_id == imp.id:
+            # We copied this file in a previous run of this same import (resume case).
+            # Don't double-count or log a duplicate skip.
+            return
         imp.files_skipped += 1
         session.add(models.ImportSkip(
             import_id=imp.id, original_path=str(src),

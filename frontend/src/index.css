@@ -22,4 +22,13 @@
   .pill-done    { @apply bg-emerald-500/15 text-emerald-300; }
   .pill-failed  { @apply bg-rose-500/15 text-rose-300; }
   .pill-pending { @apply bg-sky-500/15 text-sky-300; }
+  .pill-paused  { @apply bg-violet-500/15 text-violet-300; }
+
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+           border border-border bg-panel hover:bg-border/50 transition-colors
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-panel;
+  }
+  .btn-danger { @apply text-rose-300 border-rose-500/30 hover:bg-rose-500/10; }
+  .btn-accent { @apply text-accent border-accent/30 hover:bg-accent/10; }
 }
