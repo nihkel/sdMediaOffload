@@ -22,6 +22,25 @@ from pathlib import Path
 import httpx
 
 
+def _load_env_file(path: str = "/etc/default/sdoffload-agent") -> None:
+    """udev does not inherit systemd EnvironmentFile, so load it ourselves."""
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                v = v.strip().strip('"').strip("'")
+                os.environ.setdefault(k.strip(), v)
+    except OSError:
+        pass
+
+
+_load_env_file()
+
 VM_URL = os.environ.get("SDOFFLOAD_VM_URL", "http://localhost:8000").rstrip("/")
 TOKEN = os.environ.get("SDOFFLOAD_TOKEN", "change-me")
 MOUNT_BASE = Path(os.environ.get("SDOFFLOAD_MOUNT_BASE", "/mnt/sdoffload"))
