@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # Read source files from this prefix when the host reports a mount path.
     # If host and VM see the same path (NFS at same mountpoint), leave empty.
     source_path_remap: str = ""
+    # URL of the host-agent's HTTP server (e.g. http://10.0.10.30:8901).
+    # Required for eject-from-UI; if empty, eject button is disabled.
+    host_agent_url: str = ""
+    # Refuse to start an import if free destination space is < bytes_total + this safety buffer.
+    space_safety_bytes: int = 1024 * 1024 * 1024  # 1 GiB
 
     @property
     def db_url(self) -> str:

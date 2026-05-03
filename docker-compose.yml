@@ -17,6 +17,7 @@ services:
       # If host-agent reports /mnt/sdoffload/<uuid> and we mount the same path,
       # leave remap empty. Format if needed: "<host-prefix>:<container-prefix>"
       SDOFFLOAD_SOURCE_PATH_REMAP: ${SDOFFLOAD_SOURCE_PATH_REMAP:-}
+      SDOFFLOAD_HOST_AGENT_URL: ${SDOFFLOAD_HOST_AGENT_URL:-}
     volumes:
       # Persistent app state (SQLite + future caches)
       - ${SDOFFLOAD_DATA_PATH:-./data}:/app/data

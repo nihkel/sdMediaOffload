@@ -70,12 +70,15 @@ def cli() -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("attach"); a.add_argument("devnode")
     d = sub.add_parser("detach"); d.add_argument("devnode")
+    sub.add_parser("serve")
     args = p.parse_args()
     try:
         if args.cmd == "attach":
             return on_attach(Path(args.devnode))
         if args.cmd == "detach":
             return on_detach(Path(args.devnode))
+        if args.cmd == "serve":
+            return run_server()
     except Exception:
         log.exception("agent error")
         return 1
@@ -191,6 +194,80 @@ def notify(path: str, payload: dict) -> None:
             log.warning("Backend response: %s", r.text[:300])
     except httpx.HTTPError as exc:
         log.error("Failed to notify backend: %s (payload=%s)", exc, json.dumps(payload))
+
+
+def run_server() -> int:
+    """Long-running HTTP server invoked from the LXC for eject/list operations."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    listen = os.environ.get("SDOFFLOAD_LISTEN", "0.0.0.0:8901")
+    host, port = listen.split(":")
+    port = int(port)
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            log.info("HTTP %s", fmt % args)
+
+        def _ok_token(self):
+            return self.headers.get("X-Host-Token") == TOKEN
+
+        def _respond(self, status, body):
+            payload = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self):  # noqa: N802
+            if self.path == "/health":
+                return self._respond(200, {"ok": True})
+            if not self._ok_token():
+                return self._respond(401, {"error": "invalid token"})
+            if self.path == "/devices":
+                mounts = []
+                if MOUNT_BASE.exists():
+                    for d in MOUNT_BASE.iterdir():
+                        if d.is_dir() and is_mounted(d):
+                            mounts.append(str(d))
+                return self._respond(200, {"mounted": mounts})
+            return self._respond(404, {"error": "not found"})
+
+        def do_POST(self):  # noqa: N802
+            if not self._ok_token():
+                return self._respond(401, {"error": "invalid token"})
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                body = json.loads(raw or b"{}")
+            except json.JSONDecodeError:
+                return self._respond(400, {"error": "invalid json"})
+
+            if self.path == "/eject":
+                mount_path = str(body.get("mount_path") or "").strip()
+                base = str(MOUNT_BASE.resolve())
+                if not mount_path or not mount_path.startswith(base + "/"):
+                    return self._respond(400, {"error": f"mount_path must be under {base}/"})
+                target = Path(mount_path)
+                if not is_mounted(target):
+                    return self._respond(200, {"ok": True, "already": "not mounted"})
+                try:
+                    subprocess.run(["umount", str(target)], check=True, timeout=10)
+                    log.info("Ejected %s", target)
+                    return self._respond(200, {"ok": True})
+                except subprocess.CalledProcessError as e:
+                    return self._respond(500, {"error": f"umount failed: {e}"})
+                except subprocess.TimeoutExpired:
+                    return self._respond(504, {"error": "umount timed out"})
+            return self._respond(404, {"error": "not found"})
+
+    log.info("Host-agent server listening on %s:%s (mount base %s)", host, port, MOUNT_BASE)
+    server = ThreadingHTTPServer((host, port), Handler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 if __name__ == "__main__":

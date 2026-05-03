@@ -1,13 +1,14 @@
 [Unit]
-Description=SD Media Offload host agent (udev wrapper bookkeeping)
+Description=SD Media Offload host agent (HTTP control listener for LXC)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
+Type=simple
 EnvironmentFile=-/etc/default/sdoffload-agent
-ExecStart=/bin/true
+ExecStart=/usr/local/bin/sdoffload-agent serve
+Restart=on-failure
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

@@ -1,3 +1,5 @@
+import shutil
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -11,10 +13,20 @@ router = APIRouter()
 
 @router.get("/info")
 def info():
+    free = total = used = None
+    try:
+        usage = shutil.disk_usage(app_settings.destination_root)
+        total, used, free = usage.total, usage.used, usage.free
+    except OSError:
+        pass
     return {
         "destination_root": str(app_settings.destination_root),
         "default_template": app_settings.default_template,
         "db_path": str(app_settings.db_path),
+        "host_agent_configured": bool(app_settings.host_agent_url),
+        "destination_free_bytes": free,
+        "destination_total_bytes": total,
+        "destination_used_bytes": used,
     }
 
 

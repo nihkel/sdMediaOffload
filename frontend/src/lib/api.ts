@@ -105,7 +105,18 @@ export const api = {
   cameraProfiles: () => get<CameraProfileOut[]>("/settings/camera-profiles"),
   upsertProfile: (slug: string, body: Omit<CameraProfileOut, "id">) =>
     send<CameraProfileOut>("PUT", `/settings/camera-profiles/${slug}`, body),
-  info: () => get<{ destination_root: string; default_template: string; db_path: string }>("/settings/info"),
+  info: () => get<SystemInfo>("/settings/info"),
+  ejectDevice: (id: number) => send<{ ok: boolean; mount_path: string }>("POST", `/devices/${id}/eject`),
+};
+
+export type SystemInfo = {
+  destination_root: string;
+  default_template: string;
+  db_path: string;
+  host_agent_configured: boolean;
+  destination_free_bytes: number | null;
+  destination_total_bytes: number | null;
+  destination_used_bytes: number | null;
 };
 
 export function openProgressSocket(onMessage: (data: any) => void): () => void {

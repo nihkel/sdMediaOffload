@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, openProgressSocket, type DeviceOut, type ImportOut, type Stats } from "../lib/api";
+import { api, openProgressSocket, type DeviceOut, type ImportOut, type Stats, type SystemInfo } from "../lib/api";
 import { bytes, pct, relTime } from "../lib/format";
 import StatusPill from "../components/StatusPill";
 import ImportControls from "../components/ImportControls";
@@ -10,13 +10,27 @@ export default function Dashboard() {
   const [active, setActive] = useState<ImportOut[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<ImportOut[]>([]);
+  const [info, setInfo] = useState<SystemInfo | null>(null);
 
   async function refresh() {
-    const [d, a, s, r] = await Promise.all([api.devices(), api.activeImports(), api.stats(), api.imports()]);
+    const [d, a, s, r, i] = await Promise.all([
+      api.devices(), api.activeImports(), api.stats(), api.imports(), api.info(),
+    ]);
     setDevices(d);
     setActive(a);
     setStats(s);
     setRecent(r.slice(0, 8));
+    setInfo(i);
+  }
+
+  async function eject(id: number) {
+    if (!window.confirm("Eject this card? It will be safely unmounted on the host.")) return;
+    try {
+      await api.ejectDevice(id);
+      refresh();
+    } catch (e) {
+      alert(`Eject failed: ${(e as Error).message}`);
+    }
   }
 
   useEffect(() => {
@@ -33,10 +47,17 @@ export default function Dashboard() {
         <p className="text-muted text-sm">Live overview of devices and imports.</p>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Files in library" value={stats ? stats.total_files.toLocaleString() : "—"} />
         <Stat label="Storage used" value={stats ? bytes(stats.total_bytes) : "—"} />
         <Stat label="Devices known" value={String(devices.length)} />
+        <Stat
+          label="Free at destination"
+          value={info?.destination_free_bytes != null ? bytes(info.destination_free_bytes) : "—"}
+          sub={info?.destination_total_bytes
+            ? `${pct(info.destination_used_bytes ?? 0, info.destination_total_bytes)}% used`
+            : undefined}
+        />
       </section>
 
       <section className="space-y-3">
@@ -56,14 +77,17 @@ export default function Dashboard() {
           {devices.length === 0 && <div className="p-6 text-muted text-sm">No devices yet.</div>}
           {devices.map((d) => (
             <div key={d.id} className="p-4 flex items-center gap-4">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="font-medium">{d.label || d.fs_uuid || `device #${d.id}`}</div>
                 <div className="text-xs text-muted">
                   {d.fs_type || "?"} · {bytes(d.size_bytes ?? 0)} ·
                   {" "}{d.detected_camera ? d.detected_camera.name : "unknown camera"}
                 </div>
               </div>
-              <div className="text-xs text-muted">last seen {relTime(d.last_seen)}</div>
+              <div className="text-xs text-muted whitespace-nowrap">last seen {relTime(d.last_seen)}</div>
+              {info?.host_agent_configured && (
+                <button className="btn" onClick={() => eject(d.id)}>Eject</button>
+              )}
             </div>
           ))}
         </div>
@@ -91,11 +115,12 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="panel p-5">
       <div className="text-muted text-xs uppercase tracking-wider">{label}</div>
       <div className="text-3xl font-semibold mt-1">{value}</div>
+      {sub && <div className="text-xs text-muted mt-1">{sub}</div>}
     </div>
   );
 }

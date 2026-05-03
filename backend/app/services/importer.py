@@ -70,6 +70,21 @@ def run_import(session: Session, import_id: int, on_progress=None) -> None:
     files: list[Path] = sorted(p for p in src_root.rglob("*") if p.is_file() and is_media_file(p))
     imp.files_total = len(files)
     imp.bytes_total = sum(p.stat().st_size for p in files if _safe_exists(p))
+
+    # Pre-flight: refuse to start if destination doesn't have enough free space.
+    settings.destination_root.mkdir(parents=True, exist_ok=True)
+    needed = max(0, imp.bytes_total - imp.bytes_copied) + settings.space_safety_bytes
+    try:
+        free_bytes = shutil.disk_usage(settings.destination_root).free
+    except OSError as exc:
+        _fail(session, imp, f"Cannot stat destination {settings.destination_root}: {exc}")
+        return
+    if free_bytes < needed:
+        _fail(session, imp,
+              f"Not enough free space on {settings.destination_root}: "
+              f"need {needed:,} bytes, free {free_bytes:,} bytes")
+        return
+
     imp.status = "copying"
     session.commit()
     _maybe_progress(on_progress, imp)
