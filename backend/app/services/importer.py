@@ -19,7 +19,7 @@ from ..config import settings
 from .camera_detect import detect_camera, is_media_file
 from .exif import read_exif, mime_for
 from .hasher import partial_hash
-from . import thumbnails as thumbs
+from . import notify, thumbnails as thumbs
 
 
 log = logging.getLogger("sdoffload.importer")
@@ -105,6 +105,7 @@ def run_import(session: Session, import_id: int, on_progress=None) -> None:
             session.commit()
             _emit(session, "warn", "importer", imp, "Import cancelled — exiting worker loop")
             _maybe_progress(on_progress, imp)
+            notify.import_finished(imp)
             return
 
         try:
@@ -125,6 +126,7 @@ def run_import(session: Session, import_id: int, on_progress=None) -> None:
     _emit(session, "info", "importer", imp,
           f"Import done: new={imp.files_new} skipped={imp.files_skipped} failed={imp.files_failed}")
     _maybe_progress(on_progress, imp)
+    notify.import_finished(imp)
 
 
 def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
@@ -236,6 +238,7 @@ def _fail(session: Session, imp: models.Import, msg: str) -> None:
     session.add(models.Event(level="error", source="importer", import_id=imp.id,
                              device_id=imp.device_id, message=msg))
     session.commit()
+    notify.import_finished(imp)
 
 
 def _emit(session: Session, level: str, source: str, imp: models.Import, message: str, data: dict | None = None):

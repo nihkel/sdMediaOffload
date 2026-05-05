@@ -128,6 +128,7 @@ export const api = {
   cameraProfiles: () => get<CameraProfileOut[]>("/settings/camera-profiles"),
   upsertProfile: (slug: string, body: Omit<CameraProfileOut, "id">) =>
     send<CameraProfileOut>("PUT", `/settings/camera-profiles/${slug}`, body),
+  deleteProfile: (slug: string) => send<{ ok: boolean }>("DELETE", `/settings/camera-profiles/${slug}`),
   info: () => get<SystemInfo>("/settings/info"),
   ejectDevice: (id: number) => send<{ ok: boolean; mount_path: string }>("POST", `/devices/${id}/eject`),
 };

@@ -31,4 +31,8 @@
   }
   .btn-danger { @apply text-rose-300 border-rose-500/30 hover:bg-rose-500/10; }
   .btn-accent { @apply text-accent border-accent/30 hover:bg-accent/10; }
+  .input {
+    @apply w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm
+           focus:outline-none focus:border-accent disabled:opacity-50;
+  }
 }

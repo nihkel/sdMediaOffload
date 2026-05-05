@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     host_agent_url: str = ""
     # Refuse to start an import if free destination space is < bytes_total + this safety buffer.
     space_safety_bytes: int = 1024 * 1024 * 1024  # 1 GiB
+    # Webhook (ntfy.sh-compatible) called on terminal import status changes.
+    # Examples:
+    #   https://ntfy.sh/your-private-topic
+    #   https://discord.com/api/webhooks/...    (still posts text body, may need format)
+    notify_url: str = ""
 
     @property
     def db_url(self) -> str:

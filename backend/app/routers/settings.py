@@ -24,6 +24,7 @@ def info():
         "default_template": app_settings.default_template,
         "db_path": str(app_settings.db_path),
         "host_agent_configured": bool(app_settings.host_agent_url),
+        "notify_configured": bool(app_settings.notify_url),
         "destination_free_bytes": free,
         "destination_total_bytes": total,
         "destination_used_bytes": used,
