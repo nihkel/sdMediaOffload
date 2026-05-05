@@ -121,6 +121,26 @@ async def resume_import(import_id: int, s: Session = Depends(get_session)):
     return imp
 
 
+@router.post("/{import_id}/set-camera/{slug}", response_model=schemas.ImportOut)
+async def set_camera(import_id: int, slug: str, s: Session = Depends(get_session)):
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    profile = s.query(models.CameraProfile).filter_by(slug=slug).one_or_none()
+    if not profile:
+        raise HTTPException(404, f"Camera profile '{slug}' not found")
+    imp.camera_profile_id = profile.id
+    if imp.device:
+        imp.device.detected_camera_id = profile.id
+    s.add(models.Event(level="info", source="api", import_id=imp.id,
+                       device_id=imp.device_id,
+                       message=f"Camera profile manually set to '{slug}'"))
+    s.commit()
+    s.refresh(imp)
+    await broker.publish({"import_id": imp.id, "event": "camera_changed", "slug": slug})
+    return imp
+
+
 @router.post("/{import_id}/retry", response_model=schemas.ImportOut)
 async def retry_import(import_id: int, s: Session = Depends(get_session)):
     """Re-queue a failed/cancelled import. Already-imported files are skipped via dedup."""

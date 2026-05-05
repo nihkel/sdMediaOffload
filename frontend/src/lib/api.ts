@@ -54,6 +54,17 @@ export type MediaFileOut = {
   imported_at: string;
 };
 
+export type EventOut = {
+  id: number;
+  ts: string;
+  level: string;
+  source: string;
+  message: string;
+  import_id: number | null;
+  device_id: number | null;
+  data: Record<string, unknown> | null;
+};
+
 export type Stats = {
   total_files: number;
   total_bytes: number;
@@ -88,6 +99,18 @@ export const api = {
   cancelImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/cancel`),
   resumeImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/resume`),
   retryImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/retry`),
+  setImportCamera: (id: number, slug: string) =>
+    send<ImportOut>("POST", `/imports/${id}/set-camera/${slug}`),
+  events: (params: { level?: string; source?: string; device_id?: number; import_id?: number; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.level) qs.set("level", params.level);
+    if (params.source) qs.set("source", params.source);
+    if (params.device_id) qs.set("device_id", String(params.device_id));
+    if (params.import_id) qs.set("import_id", String(params.import_id));
+    if (params.limit) qs.set("limit", String(params.limit));
+    return get<EventOut[]>(`/events?${qs}`);
+  },
+  eventSources: () => get<string[]>("/events/sources"),
   importFiles: (id: number) => get<MediaFileOut[]>(`/imports/${id}/files`),
   importSkips: (id: number) =>
     get<{ id: number; original_path: string; reason: string; matched_media_id: number | null; detail: string | null }[]>(

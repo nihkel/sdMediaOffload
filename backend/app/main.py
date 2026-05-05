@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
-from .routers import host, devices, imports, files, settings as settings_router, ws
+from .routers import host, devices, imports, files, settings as settings_router, ws, events
 from .services.queue import import_worker
 
 
@@ -42,6 +42,7 @@ app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
 app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
+app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(ws.router, prefix="/api/ws", tags=["ws"])
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api, openProgressSocket, type ImportOut, type MediaFileOut } from "../lib/api";
+import { api, openProgressSocket, type CameraProfileOut, type ImportOut, type MediaFileOut } from "../lib/api";
 import { bytes, pct, relTime } from "../lib/format";
 import StatusPill from "../components/StatusPill";
 import ImportControls from "../components/ImportControls";
@@ -13,13 +13,22 @@ export default function ImportDetail() {
   const [imp, setImp] = useState<ImportOut | null>(null);
   const [files, setFiles] = useState<MediaFileOut[]>([]);
   const [skips, setSkips] = useState<Skip[]>([]);
+  const [profiles, setProfiles] = useState<CameraProfileOut[]>([]);
   const [tab, setTab] = useState<"files" | "skipped">("files");
 
   async function refresh() {
-    const [i, f, s] = await Promise.all([
+    const [i, f, s, p] = await Promise.all([
       api.importById(importId), api.importFiles(importId), api.importSkips(importId),
+      api.cameraProfiles(),
     ]);
-    setImp(i); setFiles(f); setSkips(s);
+    setImp(i); setFiles(f); setSkips(s); setProfiles(p);
+  }
+
+  async function changeCamera(slug: string) {
+    if (!imp || slug === imp.camera_profile?.slug) return;
+    if (!window.confirm(`Override camera profile to '${slug}'? Already-copied files will not be moved; only future imports/resumes use the new template.`)) return;
+    await api.setImportCamera(imp.id, slug);
+    refresh();
   }
 
   useEffect(() => {
@@ -41,13 +50,21 @@ export default function ImportDetail() {
   return (
     <div className="p-8 space-y-6">
       <Link to="/imports" className="text-xs text-muted hover:text-white">← Imports</Link>
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Import #{imp.id}</h1>
-          <div className="text-sm text-muted mt-1">
-            {imp.camera_profile?.name || "—"} · {imp.device?.label || `device #${imp.device_id}`} ·
-            {" "}started {relTime(imp.started_at)}
-            {imp.finished_at && <> · finished {relTime(imp.finished_at)}</>}
+          <div className="text-sm text-muted mt-1 flex items-center gap-2 flex-wrap">
+            <select
+              value={imp.camera_profile?.slug || ""}
+              onChange={(e) => changeCamera(e.target.value)}
+              className="bg-panel border border-border rounded px-2 py-0.5 text-xs"
+              title="Override camera profile"
+            >
+              <option value="" disabled>— pick —</option>
+              {profiles.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+            </select>
+            <span>· {imp.device?.label || `device #${imp.device_id}`} · started {relTime(imp.started_at)}</span>
+            {imp.finished_at && <span>· finished {relTime(imp.finished_at)}</span>}
           </div>
         </div>
         <div className="flex items-center gap-3">

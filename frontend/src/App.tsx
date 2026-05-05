@@ -4,11 +4,13 @@ import Imports from "./pages/Imports";
 import ImportDetail from "./pages/ImportDetail";
 import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
+import Events from "./pages/Events";
 
 const navItems = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/imports", label: "Imports" },
   { to: "/library", label: "Library" },
+  { to: "/events", label: "Events" },
   { to: "/settings", label: "Settings" },
 ];
 
@@ -43,6 +45,7 @@ export default function App() {
           <Route path="/imports" element={<Imports />} />
           <Route path="/imports/:id" element={<ImportDetail />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/events" element={<Events />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

@@ -23,14 +23,36 @@ class ImportWorker:
         self._stopped = False
 
     async def start(self) -> asyncio.Task:
-        # On startup, mark any in-flight imports as failed (we crashed mid-run).
+        # On startup, attempt to auto-resume in-flight imports if their source mount is still there.
+        from .. import models
+        from .importer import remap_source
+
+        to_resume: list[int] = []
         with session_scope() as s:
-            from .. import models
-            stuck = s.query(models.Import).filter(models.Import.status.in_(("pending", "scanning", "copying"))).all()
+            stuck = (s.query(models.Import)
+                     .filter(models.Import.status.in_(("pending", "scanning", "copying")))
+                     .all())
             for imp in stuck:
-                imp.status = "failed"
-                imp.error = "interrupted by restart"
-        return asyncio.create_task(self._run(), name="import-worker")
+                src = remap_source(imp.mount_path)
+                if src.exists():
+                    imp.status = "pending"
+                    s.add(models.Event(level="info", source="queue", import_id=imp.id,
+                                       device_id=imp.device_id,
+                                       message="Auto-resuming after restart"))
+                    to_resume.append(imp.id)
+                else:
+                    imp.status = "failed"
+                    imp.error = "Interrupted by restart; source no longer accessible"
+                    s.add(models.Event(level="warn", source="queue", import_id=imp.id,
+                                       device_id=imp.device_id,
+                                       message="Marked failed: source path gone after restart"))
+
+        task = asyncio.create_task(self._run(), name="import-worker")
+        for import_id in to_resume:
+            await self.queue.put(import_id)
+        if to_resume:
+            log.info("Auto-resuming %d import(s) after restart: %s", len(to_resume), to_resume)
+        return task
 
     async def stop(self, task: asyncio.Task) -> None:
         self._stopped = True
