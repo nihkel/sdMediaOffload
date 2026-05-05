@@ -138,6 +138,7 @@ export type SystemInfo = {
   default_template: string;
   db_path: string;
   host_agent_configured: boolean;
+  notify_configured: boolean;
   destination_free_bytes: number | null;
   destination_total_bytes: number | null;
   destination_used_bytes: number | null;
