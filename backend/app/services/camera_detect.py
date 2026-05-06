@@ -48,6 +48,16 @@ DEFAULT_PROFILES: list[dict] = [
         "dest_template": "{camera_slug}/{captured:%Y}/{captured:%Y-%m-%d}/{original_name}",
     },
     {
+        "slug": "iphone",
+        "name": "iPhone",
+        "detection_rules": {
+            "dirs": ["DCIM/*APPLE"],
+            "files": ["IMG_*.HEIC", "IMG_*.JPG", "IMG_*.MOV", "IMG_*.MP4"],
+            "exif_make": "apple",
+        },
+        "dest_template": "{camera_slug}/{captured:%Y}/{captured:%Y-%m-%d}/{original_name}",
+    },
+    {
         "slug": "unknown",
         "name": "Generic / Unknown",
         "detection_rules": {"dirs": ["DCIM"], "files": ["*.JPG", "*.MP4"]},

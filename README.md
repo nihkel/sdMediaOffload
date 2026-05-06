@@ -101,7 +101,7 @@ Configurable por perfil de cámara en `Settings`.
 - [ ] Frontend completo (Imports detail, Library, Settings) — Phase 2
 - [ ] WebSocket de progreso live — Phase 2
 - [ ] Generación de thumbnails — Phase 2
-- [ ] Soporte iPhone/MTP — futuro
+- [x] Soporte iPhone/MTP (vía libimobiledevice + ifuse — ver [host-agent/IPHONE.md](host-agent/IPHONE.md))
 
 ## Despliegue con Docker
 

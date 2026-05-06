@@ -70,6 +70,8 @@ def cli() -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("attach"); a.add_argument("devnode")
     d = sub.add_parser("detach"); d.add_argument("devnode")
+    ai = sub.add_parser("attach-iphone"); ai.add_argument("udid")
+    di = sub.add_parser("detach-iphone"); di.add_argument("udid")
     sub.add_parser("serve")
     args = p.parse_args()
     try:
@@ -77,6 +79,10 @@ def cli() -> int:
             return on_attach(Path(args.devnode))
         if args.cmd == "detach":
             return on_detach(Path(args.devnode))
+        if args.cmd == "attach-iphone":
+            return on_attach_iphone(args.udid)
+        if args.cmd == "detach-iphone":
+            return on_detach_iphone(args.udid)
         if args.cmd == "serve":
             return run_server()
     except Exception:
@@ -194,6 +200,64 @@ def notify(path: str, payload: dict) -> None:
             log.warning("Backend response: %s", r.text[:300])
     except httpx.HTTPError as exc:
         log.error("Failed to notify backend: %s (payload=%s)", exc, json.dumps(payload))
+
+
+def on_attach_iphone(udid: str) -> int:
+    """Mount a paired iPhone (libimobiledevice + ifuse) and notify the backend."""
+    if not udid:
+        log.warning("attach-iphone called without UDID")
+        return 0
+
+    # Confirm the device is visible to libimobiledevice (paired & trusted)
+    try:
+        listed = subprocess.check_output(["idevice_id", "-l"], text=True, timeout=5).split()
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        log.warning("idevice_id failed (%s); is libimobiledevice installed and is the phone paired?", exc)
+        return 0
+    if udid not in listed:
+        log.info("iPhone %s not visible (idevice_id list: %s); skipping", udid, listed)
+        return 0
+
+    try:
+        name = subprocess.check_output(["idevicename", "-u", udid], text=True, timeout=5).strip()
+    except Exception:
+        name = f"iphone-{udid[:8]}"
+
+    mount_dir = MOUNT_BASE / f"iphone-{udid[:8]}"
+    mount_dir.mkdir(parents=True, exist_ok=True)
+
+    if not is_mounted(mount_dir):
+        log.info("Mounting iPhone %s (%s) at %s via ifuse", udid, name, mount_dir)
+        try:
+            subprocess.run(
+                ["ifuse", "-o", "ro,allow_other", "-u", udid, str(mount_dir)],
+                check=True, timeout=30,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            log.error("ifuse mount failed: %s", exc)
+            return 1
+
+    payload = {
+        "fs_uuid": udid,
+        "serial": udid,
+        "label": name or f"iphone-{udid[:8]}",
+        "fs_type": "ifuse-afc",
+        "size_bytes": None,
+        "mount_path": str(mount_dir),
+    }
+    notify("/api/host/device-attached", payload)
+    return 0
+
+
+def on_detach_iphone(udid: str) -> int:
+    if not udid:
+        return 0
+    mount_dir = MOUNT_BASE / f"iphone-{udid[:8]}"
+    if is_mounted(mount_dir):
+        log.info("Unmounting iPhone at %s", mount_dir)
+        subprocess.run(["fusermount", "-u", str(mount_dir)], check=False)
+    notify("/api/host/device-detached", {"fs_uuid": udid, "mount_path": str(mount_dir)})
+    return 0
 
 
 def run_server() -> int:

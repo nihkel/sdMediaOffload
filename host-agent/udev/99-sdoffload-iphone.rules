@@ -1,0 +1,20 @@
+# SD Media Offload — iPhone / iOS device rules
+#
+# Apple vendor ID is 05ac. We trigger our agent on every Apple USB device add and
+# let the agent filter via libimobiledevice (idevice_id -l) to only act on iOS devices.
+#
+# Requires on the host: libimobiledevice-utils, ifuse, usbmuxd, fuse
+#
+# One-time pairing (run once after you Trust the host on the iPhone):
+#   apt install -y libimobiledevice-utils ifuse usbmuxd fuse
+#   idevicepair pair
+#
+# Install: cp 99-sdoffload-iphone.rules /etc/udev/rules.d/ && udevadm control --reload-rules
+
+ACTION=="add",    SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", \
+    ENV{ID_USB_INTERFACES}=="*:ff*:*", \
+    RUN+="/usr/local/bin/sdoffload-agent attach-iphone $env{ID_SERIAL_SHORT}"
+
+ACTION=="remove", SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", \
+    ENV{ID_USB_INTERFACES}=="*:ff*:*", \
+    RUN+="/usr/local/bin/sdoffload-agent detach-iphone $env{ID_SERIAL_SHORT}"
