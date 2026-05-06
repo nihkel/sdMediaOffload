@@ -15,6 +15,19 @@
   .panel {
     @apply bg-panel border border-border rounded-xl;
   }
+  .kiosk-panel {
+    @apply bg-panel border border-border rounded-2xl;
+  }
+  .kiosk {
+    /* Slightly larger base font for tablet kiosk */
+    font-size: 17px;
+  }
+  @media (min-width: 1280px) {
+    .kiosk { font-size: 19px; }
+  }
+  @media (min-width: 1920px) {
+    .kiosk { font-size: 22px; }
+  }
   .pill {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
   }

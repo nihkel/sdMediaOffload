@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, setUnauthorizedHandler } from "./lib/api";
 import Dashboard from "./pages/Dashboard";
 import Imports from "./pages/Imports";
@@ -8,6 +8,7 @@ import Library from "./pages/Library";
 import SettingsPage from "./pages/Settings";
 import Events from "./pages/Events";
 import Login from "./pages/Login";
+import Kiosk from "./pages/Kiosk";
 
 const navItems = [
   { to: "/", label: "Dashboard", end: true },
@@ -21,13 +22,15 @@ type AuthState = "loading" | "authenticated" | "unauthenticated";
 
 export default function App() {
   const [auth, setAuth] = useState<AuthState>("loading");
+  const location = useLocation();
+  const isKiosk = location.pathname.startsWith("/kiosk");
 
   const checkAuth = useCallback(async () => {
     try {
       const s = await api.authStatus();
       setAuth(s.authenticated ? "authenticated" : "unauthenticated");
     } catch {
-      setAuth("authenticated");  // if status endpoint fails, fail-open (auth not configured?)
+      setAuth("authenticated");
     }
   }, []);
 
@@ -47,6 +50,15 @@ export default function App() {
   }
   if (auth === "unauthenticated") {
     return <Login onLoggedIn={() => setAuth("authenticated")} />;
+  }
+
+  // Kiosk renders alone — no sidebar, no chrome — perfect for HA iframe / wall display
+  if (isKiosk) {
+    return (
+      <Routes>
+        <Route path="/kiosk" element={<Kiosk />} />
+      </Routes>
+    );
   }
 
   return (
@@ -72,7 +84,10 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-2">
+          <a href="/kiosk" target="_blank" rel="noreferrer" className="btn w-full justify-center">
+            Open Kiosk ↗
+          </a>
           <button onClick={logout} className="btn w-full justify-center">Sign out</button>
         </div>
       </aside>

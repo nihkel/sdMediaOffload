@@ -88,6 +88,17 @@ Variables disponibles:
 
 Configurable por perfil de cámara en `Settings`.
 
+## Home Assistant integration
+
+El dashboard tiene una vista kiosk full-bleed pensada para tablet de pared, integrable como iframe en HA, y endpoint `/api/settings/ha-summary` para alimentar sensores REST. Ver guía completa: **[HOMEASSISTANT.md](HOMEASSISTANT.md)**.
+
+```yaml
+# Lovelace
+type: iframe
+url: http://10.0.40.14:8999/kiosk
+aspect_ratio: 16:9
+```
+
 ## Estado actual (Phase 1)
 
 - [x] Esqueleto del proyecto

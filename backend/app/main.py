@@ -40,7 +40,20 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
+
+
+@app.middleware("http")
+async def iframe_headers(request: Request, call_next):
+    """Allow embedding the UI in Home Assistant / other dashboards."""
+    response = await call_next(request)
+    # Modern browsers respect CSP frame-ancestors over the deprecated X-Frame-Options
+    response.headers["Content-Security-Policy"] = response.headers.get(
+        "Content-Security-Policy", "frame-ancestors *"
+    )
+    response.headers.pop("X-Frame-Options", None)
+    return response
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
