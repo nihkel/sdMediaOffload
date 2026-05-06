@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..services import auth as auth_svc
 from ..services.ws_broker import broker
 
 
@@ -13,6 +14,11 @@ log = logging.getLogger("sdoffload.ws")
 
 @router.websocket("/progress")
 async def progress(ws: WebSocket):
+    if auth_svc.auth_required():
+        token = ws.cookies.get(auth_svc.COOKIE_NAME, "")
+        if not auth_svc.verify_token(token):
+            await ws.close(code=4401)
+            return
     await ws.accept()
     q = broker.subscribe()
     try:

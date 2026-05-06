@@ -2,14 +2,15 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
-from .routers import host, devices, imports, files, settings as settings_router, ws, events, admin
+from .routers import auth as auth_router, host, devices, imports, files, settings as settings_router, ws, events, admin
+from .services import auth as auth_svc
 from .services.backup import start_backup_loop
 from .services.queue import import_worker
 
@@ -41,6 +42,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if not auth_svc.auth_required():
+        return await call_next(request)
+    path = request.url.path
+    # Public endpoints / static assets
+    if path == "/api/health" or path.startswith("/api/auth/"):
+        return await call_next(request)
+    # Host-agent uses its own X-Host-Token, not user cookie
+    if path.startswith("/api/host/"):
+        return await call_next(request)
+    # SPA assets (login page must load before user is authenticated)
+    if not path.startswith("/api/"):
+        return await call_next(request)
+    token = request.cookies.get(auth_svc.COOKIE_NAME, "")
+    if not auth_svc.verify_token(token):
+        return JSONResponse({"error": "auth required"}, status_code=401)
+    return await call_next(request)
+
+
+app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(host.router, prefix="/api/host", tags=["host"])
 app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
 app.include_router(imports.router, prefix="/api/imports", tags=["imports"])

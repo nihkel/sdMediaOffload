@@ -73,8 +73,12 @@ export type Stats = {
 
 const BASE = "/api";
 
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
+
 async function get<T>(path: string): Promise<T> {
-  const r = await fetch(`${BASE}${path}`);
+  const r = await fetch(`${BASE}${path}`, { credentials: "include" });
+  if (r.status === 401 && onUnauthorized) onUnauthorized();
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
@@ -82,9 +86,11 @@ async function get<T>(path: string): Promise<T> {
 async function send<T>(method: "PUT" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
     method,
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (r.status === 401 && onUnauthorized) onUnauthorized();
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
@@ -135,6 +141,9 @@ export const api = {
   deleteProfile: (slug: string) => send<{ ok: boolean }>("DELETE", `/settings/camera-profiles/${slug}`),
   info: () => get<SystemInfo>("/settings/info"),
   ejectDevice: (id: number) => send<{ ok: boolean; mount_path: string }>("POST", `/devices/${id}/eject`),
+  authStatus: () => get<{ required: boolean; authenticated: boolean }>("/auth/status"),
+  login: (password: string) => send<{ ok: boolean }>("POST", "/auth/login", { password }),
+  logout: () => send<{ ok: boolean }>("POST", "/auth/logout"),
 };
 
 export type BackupEntry = {
