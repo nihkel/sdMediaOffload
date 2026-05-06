@@ -19,6 +19,7 @@ from ..config import settings
 from .camera_detect import detect_camera, is_media_file
 from .exif import read_exif, mime_for
 from .hasher import partial_hash
+from .paths import ensure_unique, render_template
 from . import notify, thumbnails as thumbs
 
 
@@ -152,7 +153,7 @@ def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
     meta = read_exif(src)
     captured = meta.get("captured_at") or datetime.fromtimestamp(src.stat().st_mtime)
 
-    rel = _render_template(template, {
+    rel = render_template(template, {
         "camera_slug": (profile.slug if profile else "unknown"),
         "captured": captured,
         "original_name": src.name,
@@ -162,7 +163,7 @@ def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
         "device_uuid": (imp.device.fs_uuid if imp.device else ""),
     })
     dest = settings.destination_root / rel
-    dest = _ensure_unique(dest)
+    dest = ensure_unique(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(src, dest)
@@ -206,29 +207,6 @@ def _import_one(session: Session, imp: models.Import, src: Path, src_root: Path,
     imp.files_new += 1
     imp.bytes_copied += size
     session.commit()
-
-
-def _render_template(template: str, ctx: dict) -> Path:
-    formatted = template.format(**ctx)
-    parts = [_safe_segment(p) for p in formatted.split("/") if p]
-    return Path(*parts)
-
-
-def _safe_segment(s: str) -> str:
-    bad = '<>:"|?*\x00'
-    return "".join("_" if c in bad else c for c in s).strip(" .") or "_"
-
-
-def _ensure_unique(dest: Path) -> Path:
-    if not dest.exists():
-        return dest
-    stem, suffix = dest.stem, dest.suffix
-    n = 1
-    while True:
-        candidate = dest.with_name(f"{stem}__{n}{suffix}")
-        if not candidate.exists():
-            return candidate
-        n += 1
 
 
 def _fail(session: Session, imp: models.Import, msg: str) -> None:

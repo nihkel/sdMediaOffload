@@ -26,9 +26,21 @@ export default function ImportDetail() {
 
   async function changeCamera(slug: string) {
     if (!imp || slug === imp.camera_profile?.slug) return;
-    if (!window.confirm(`Override camera profile to '${slug}'? Already-copied files will not be moved; only future imports/resumes use the new template.`)) return;
+    if (!window.confirm(`Override camera profile to '${slug}'? Already-copied files stay where they are — use Reorganize to move them.`)) return;
     await api.setImportCamera(imp.id, slug);
     refresh();
+  }
+
+  async function reorganize() {
+    if (!imp) return;
+    if (!window.confirm("Reorganize all imported files of this import using the current camera profile's template? Files will be moved on disk.")) return;
+    try {
+      const r = await api.reorganizeImport(imp.id);
+      alert(`Reorganized: ${r.moved} moved, ${r.skipped} unchanged, ${r.failed} failed (of ${r.total}).`);
+      refresh();
+    } catch (e) {
+      alert(`Reorganize failed: ${(e as Error).message}`);
+    }
   }
 
   useEffect(() => {
@@ -68,6 +80,9 @@ export default function ImportDetail() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {!["scanning", "copying", "pending"].includes(imp.status) && files.length > 0 && (
+            <button className="btn" onClick={reorganize}>Reorganize files</button>
+          )}
           <ImportControls imp={imp} onChange={refresh} />
           <StatusPill status={imp.status} />
         </div>

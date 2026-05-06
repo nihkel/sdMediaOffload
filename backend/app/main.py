@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
-from .routers import host, devices, imports, files, settings as settings_router, ws, events
+from .routers import host, devices, imports, files, settings as settings_router, ws, events, admin
+from .services.backup import start_backup_loop
 from .services.queue import import_worker
 
 
@@ -21,11 +22,14 @@ log = logging.getLogger("sdoffload")
 async def lifespan(app: FastAPI):
     init_db()
     log.info("DB ready at %s", settings.db_path)
-    worker_task = await import_worker.start()
+    worker_tasks = await import_worker.start()
+    backup_task = await start_backup_loop()
     try:
         yield
     finally:
-        await import_worker.stop(worker_task)
+        await import_worker.stop(worker_tasks)
+        if backup_task:
+            backup_task.cancel()
 
 
 app = FastAPI(title="SD Media Offload", version="0.1.0", lifespan=lifespan)
@@ -43,6 +47,7 @@ app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(ws.router, prefix="/api/ws", tags=["ws"])
 
 

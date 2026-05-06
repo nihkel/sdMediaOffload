@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, type CameraProfileOut, type SystemInfo } from "../lib/api";
-import { bytes } from "../lib/format";
+import { api, type BackupEntry, type CameraProfileOut, type SystemInfo } from "../lib/api";
+import { bytes, relTime } from "../lib/format";
 
 const BLANK: Omit<CameraProfileOut, "id"> = {
   slug: "",
@@ -12,15 +12,31 @@ const BLANK: Omit<CameraProfileOut, "id"> = {
 export default function SettingsPage() {
   const [profiles, setProfiles] = useState<CameraProfileOut[]>([]);
   const [info, setInfo] = useState<SystemInfo | null>(null);
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [editing, setEditing] = useState<string | null>(null);   // slug being edited or "" for new
   const [draft, setDraft] = useState<Omit<CameraProfileOut, "id">>(BLANK);
   const [rulesText, setRulesText] = useState<string>("{}");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [p, i] = await Promise.all([api.cameraProfiles(), api.info()]);
+    const [p, i, b] = await Promise.all([api.cameraProfiles(), api.info(), api.listBackups()]);
     setProfiles(p);
     setInfo(i);
+    setBackups(b);
+  }
+
+  async function runBackup() {
+    setBusy(true);
+    try {
+      const r = await api.runBackup();
+      alert(`Backup OK · ${(r.size_bytes / 1024).toFixed(1)} KB`);
+      refresh();
+    } catch (e) {
+      alert(`Backup failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
   useEffect(() => { refresh().catch(console.error); }, []);
@@ -88,6 +104,26 @@ export default function SettingsPage() {
           <KV label="Eject from UI" value={info?.host_agent_configured ? "enabled" : "disabled (set SDOFFLOAD_HOST_AGENT_URL)"} />
           <KV label="Notifications" value={info?.notify_configured ? "enabled" : "disabled (set SDOFFLOAD_NOTIFY_URL)"} />
         </dl>
+      </section>
+
+      <section className="panel p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-muted">DB Backups</h2>
+          <button className="btn" disabled={busy} onClick={runBackup}>Backup now</button>
+        </div>
+        {backups.length === 0 ? (
+          <div className="text-sm text-muted">No backups yet.</div>
+        ) : (
+          <ul className="text-sm divide-y divide-border">
+            {backups.map((b) => (
+              <li key={b.name} className="py-2 flex items-center gap-3">
+                <span className="font-mono text-xs flex-1">{b.name}</span>
+                <span className="text-xs text-muted">{bytes(b.size_bytes)}</span>
+                <span className="text-xs text-muted w-32 text-right">{relTime(b.mtime)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="space-y-3">

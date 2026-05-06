@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..db import get_session
 from ..services.queue import import_worker
+from ..services.reorganize import reorganize_import
 from ..services.ws_broker import broker
 
 
@@ -119,6 +120,18 @@ async def resume_import(import_id: int, s: Session = Depends(get_session)):
     await import_worker.enqueue(imp.id)
     await broker.publish({"import_id": imp.id, "status": imp.status, "event": "resumed"})
     return imp
+
+
+@router.post("/{import_id}/reorganize")
+async def reorganize_endpoint(import_id: int, s: Session = Depends(get_session)):
+    imp = s.get(models.Import, import_id)
+    if not imp:
+        raise HTTPException(404)
+    if imp.status in {"scanning", "copying", "pending"}:
+        raise HTTPException(409, f"Import is {imp.status}; pause or cancel before reorganizing")
+    result = reorganize_import(s, import_id)
+    await broker.publish({"import_id": import_id, "event": "reorganized", **result})
+    return result
 
 
 @router.post("/{import_id}/set-camera/{slug}", response_model=schemas.ImportOut)

@@ -101,6 +101,10 @@ export const api = {
   retryImport: (id: number) => send<ImportOut>("POST", `/imports/${id}/retry`),
   setImportCamera: (id: number, slug: string) =>
     send<ImportOut>("POST", `/imports/${id}/set-camera/${slug}`),
+  reorganizeImport: (id: number) =>
+    send<{ moved: number; skipped: number; failed: number; total: number }>("POST", `/imports/${id}/reorganize`),
+  listBackups: () => get<BackupEntry[]>("/admin/backups"),
+  runBackup: () => send<{ ok: boolean; path: string; size_bytes: number }>("POST", "/admin/backups/run"),
   events: (params: { level?: string; source?: string; device_id?: number; import_id?: number; limit?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.level) qs.set("level", params.level);
@@ -131,6 +135,13 @@ export const api = {
   deleteProfile: (slug: string) => send<{ ok: boolean }>("DELETE", `/settings/camera-profiles/${slug}`),
   info: () => get<SystemInfo>("/settings/info"),
   ejectDevice: (id: number) => send<{ ok: boolean; mount_path: string }>("POST", `/devices/${id}/eject`),
+};
+
+export type BackupEntry = {
+  name: string;
+  path: string;
+  size_bytes: number;
+  mtime: string;
 };
 
 export type SystemInfo = {

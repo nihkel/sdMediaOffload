@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Optional
 
+from ..config import settings
 from ..db import session_scope
 from . import importer as importer_mod
 from .ws_broker import broker
@@ -21,8 +22,9 @@ class ImportWorker:
     def __init__(self) -> None:
         self.queue: asyncio.Queue[int] = asyncio.Queue()
         self._stopped = False
+        self._tasks: list[asyncio.Task] = []
 
-    async def start(self) -> asyncio.Task:
+    async def start(self) -> list[asyncio.Task]:
         # On startup, attempt to auto-resume in-flight imports if their source mount is still there.
         from .. import models
         from .importer import remap_source
@@ -47,27 +49,33 @@ class ImportWorker:
                                        device_id=imp.device_id,
                                        message="Marked failed: source path gone after restart"))
 
-        task = asyncio.create_task(self._run(), name="import-worker")
+        n = max(1, settings.worker_count)
+        loop = asyncio.get_running_loop()
+        self._tasks = [asyncio.create_task(self._run(loop), name=f"import-worker-{i}") for i in range(n)]
+        log.info("Started %d import worker(s)", n)
         for import_id in to_resume:
             await self.queue.put(import_id)
         if to_resume:
             log.info("Auto-resuming %d import(s) after restart: %s", len(to_resume), to_resume)
-        return task
+        return self._tasks
 
-    async def stop(self, task: asyncio.Task) -> None:
+    async def stop(self, tasks: list[asyncio.Task] | asyncio.Task) -> None:
         self._stopped = True
-        await self.queue.put(-1)
+        if isinstance(tasks, asyncio.Task):
+            tasks = [tasks]
+        for _ in tasks:
+            await self.queue.put(-1)
         try:
-            await asyncio.wait_for(task, timeout=5)
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5)
         except asyncio.TimeoutError:
-            task.cancel()
+            for t in tasks:
+                t.cancel()
 
     async def enqueue(self, import_id: int) -> None:
         await self.queue.put(import_id)
 
-    async def _run(self) -> None:
-        log.info("Import worker started")
-        loop = asyncio.get_running_loop()
+    async def _run(self, loop: asyncio.AbstractEventLoop) -> None:
+        log.info("Import worker %s online", asyncio.current_task().get_name())
         while not self._stopped:
             import_id = await self.queue.get()
             if import_id == -1:

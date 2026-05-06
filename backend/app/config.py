@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     #   https://ntfy.sh/your-private-topic
     #   https://discord.com/api/webhooks/...    (still posts text body, may need format)
     notify_url: str = ""
+    # Number of import workers. >1 lets multiple cards import concurrently.
+    worker_count: int = 2
+    # DB backup settings — periodic SQLite snapshot to <destination>/.sdoffload-backups
+    backup_interval_hours: int = 24
+    backup_keep_count: int = 14
+    # UI single-password auth. If empty, the UI/API are open (LAN-only deployment).
+    ui_password: str = ""
+    # Random secret for signing the auth cookie. Auto-generated and persisted on first run.
+    auth_secret: str = ""
 
     @property
     def db_url(self) -> str:

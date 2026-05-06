@@ -36,7 +36,9 @@ RUN python -m pip install --upgrade pip \
     "python-multipart>=0.0.9" \
     "httpx>=0.27" \
     "Pillow>=10.4" \
-    "pillow-heif>=0.18"
+    "pillow-heif>=0.18" \
+    "rawpy>=0.21" \
+    "numpy>=1.26"
 
 COPY backend/ ./
 COPY --from=frontend-build /build/dist ./static
